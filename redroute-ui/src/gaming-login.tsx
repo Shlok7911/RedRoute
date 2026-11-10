@@ -9,6 +9,8 @@ import { setSession } from "./session";
 
 const LANDING_ROUTE = '/home';
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''; // leave blank for same-origin
+const DEMO_EMAIL = 'check@gmail.com';
+const DEMO_PASSWORD = '12345678';
 
 /* ----------------------------- UI helpers --------------------------------- */
 type FormInputProps = {
@@ -178,6 +180,25 @@ const GamingLogin: React.FC<GamingLoginProps> = ({ onSubmit }) => {
           {mode === 'login' ? 'Welcome back' : 'Create your account'}
         </p>
       </div>
+
+      {mode === 'login' && (
+        <div className="mb-6 rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white/90">
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/60">Demo account</div>
+          <div>Email: <span className="font-medium text-white">{DEMO_EMAIL}</span></div>
+          <div>Password: <span className="font-medium text-white">{DEMO_PASSWORD}</span></div>
+          <button
+            type="button"
+            className="mt-3 text-sm font-semibold text-[#E50914] hover:underline"
+            onClick={() => {
+              setEmail(DEMO_EMAIL);
+              setPassword(DEMO_PASSWORD);
+              setError(null);
+            }}
+          >
+            Fill demo login
+          </button>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6" noValidate>
         {/* Email */}
