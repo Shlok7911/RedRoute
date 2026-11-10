@@ -1,10 +1,9 @@
 // src/RedRouteLandingUltra.tsx
 import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   motion,
   useMotionValue,
-  useSpring,
   useTransform,
   useScroll,
   useInView,
@@ -29,6 +28,8 @@ import {
   Minus,
   Plus,
 } from "lucide-react";
+import { clearSession } from "./session";
+import EventCard, { type EventItem } from "./components/EventCard";
 
 /* --------------------- cookie helpers (kept) --------------------- */
 function setCookie(name: string, value: string, days = 7) {
@@ -42,37 +43,30 @@ function deleteCookie(name: string) {
 }
 
 const RR = { red: "#E50914" } as const;
-const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+
+function toYMD(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 /* --------------------------- KINETIC HEADLINE ------------------------------ */
 function Kinetic({ text, className = "" }: { text: string; className?: string }) {
   const words = text.split(" ");
-  let idx = 0;
   return (
-    <h1 className={`mx-auto text-center font-black leading-[1.05] tracking-tight ${className}`}>
-      {words.map((w, wi) => {
-        const letters = w.split("").map((ch, i) => {
-          const delay = 0.02 * idx++;
-          return (
-            <motion.span
-              key={`${wi}-${i}`}
-              initial={{ y: "1.2em", rotateX: -90, opacity: 0 }}
-              animate={{ y: 0, rotateX: 0, opacity: 1 }}
-              transition={{ delay, type: "spring", stiffness: 250, damping: 20 }}
-              className="inline-block [perspective:600px]"
-            >
-              <span className="inline-block bg-clip-text text-transparent [background-image:linear-gradient(180deg,#fff,rgba(255,255,255,0.75))]">
-                {ch}
-              </span>
-            </motion.span>
-          );
-        });
-        return (
-          <span key={wi} className="inline-block whitespace-nowrap mr-2">
-            {letters}
-          </span>
-        );
-      })}
+    <h1 className={`font-black leading-[1.05] tracking-tight ${className}`}>
+      {words.map((w, wi) => (
+        <motion.span
+          key={`${w}-${wi}`}
+          initial={{ y: "0.3em", opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.045 * wi, duration: 0.35, ease: "easeOut" }}
+          className="mr-[0.28em] inline-block whitespace-nowrap last:mr-0"
+        >
+          {w}
+        </motion.span>
+      ))}
     </h1>
   );
 }
@@ -105,11 +99,10 @@ function Field({
 /* ------------------------- SCROLL PROGRESS BAR ----------------------------- */
 function ScrollProgress() {
   const { scrollYProgress } = useScroll();
-  const scaleX = useSpring(scrollYProgress, { stiffness: 140, damping: 30, restDelta: 0.001 });
   return (
     <motion.div
-      className="fixed left-0 right-0 top-0 z-[9999] h-1 origin-left bg-gradient-to-r from-red-600 via-white/80 to-red-600"
-      style={{ scaleX }}
+      className="fixed left-0 right-0 top-0 z-[60] h-0.5 origin-left bg-[#E50914]"
+      style={{ scaleX: scrollYProgress }}
     />
   );
 }
@@ -189,10 +182,9 @@ function CalendarPopover({
   const [end, setEnd] = useState<Date | null>(value?.end ?? null);
 
   useEffect(() => {
-    if (value) { setStart(value.start ?? null); setEnd(value.end ?? null); }
+    setStart(value?.start ?? null);
+    setEnd(value?.end ?? null);
   }, [value?.start, value?.end]);
-
-  useEffect(() => { onChange?.({ start, end }); }, [start, end]);
 
   const cells = useMonthMatrix(viewY, viewM);
 
@@ -208,8 +200,18 @@ function CalendarPopover({
   };
 
   const onPick = (d: Date) => {
-    if (!start || (start && end)) { setStart(d); setEnd(null); }
-    else { setEnd(d); setTimeout(() => setOpen(false), 120); }
+    const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    if (!start || end) {
+      setStart(d);
+      setEnd(null);
+      onChange?.({ start: d, end: null });
+      return;
+    }
+    const [a, b] = day(d) < day(start) ? [d, start] : [start, d];
+    setStart(a);
+    setEnd(b);
+    onChange?.({ start: a, end: b });
+    window.setTimeout(() => setOpen(false), 120);
   };
 
   const label =
@@ -256,7 +258,7 @@ function CalendarPopover({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 240, damping: 20 }}
-            className="absolute z-50 mt-2 w-[320px] overflow-hidden rounded-2xl border border-white/12 bg-[rgba(0,0,0,0.7)] backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,.45)]"
+            className="absolute left-0 z-50 mt-2 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-white/12 bg-[rgba(0,0,0,0.92)] shadow-[0_20px_60px_rgba(0,0,0,.45)]"
             role="dialog"
           >
             <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 bg-white/[0.06]">
@@ -309,7 +311,7 @@ function CalendarPopover({
 
               <div className="mt-2 flex items-center justify-between px-1 text-[11px] text-white/60">
                 <span>Pick start, then end</span>
-                <button className="underline hover:text-white" onClick={() => { setStart(null); setEnd(null); }}>
+                <button type="button" className="underline hover:text-white" onClick={() => { setStart(null); setEnd(null); onChange?.({ start: null, end: null }); }}>
                   Clear
                 </button>
               </div>
@@ -459,7 +461,7 @@ function DestinationPicker({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 240, damping: 22 }}
-            className="absolute z-50 mt-2 w-[360px] max-h-[320px] overflow-auto rounded-2xl border border-white/12 bg-[rgba(0,0,0,0.75)] backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,.45)]"
+            className="absolute left-0 z-50 mt-2 max-h-[320px] w-[min(22.5rem,calc(100vw-2rem))] overflow-auto rounded-2xl border border-white/12 bg-[rgba(0,0,0,0.92)] shadow-[0_20px_60px_rgba(0,0,0,.45)]"
             id="destination-listbox"
             role="listbox"
             ref={listRef}
@@ -609,7 +611,7 @@ function GuestsPopover({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 240, damping: 20 }}
-            className="absolute z-50 mt-2 w-[320px] overflow-hidden rounded-2xl border border-white/12 bg-[rgba(0,0,0,0.75)] backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,.45)] p-3"
+            className="absolute right-0 z-50 mt-2 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-white/12 bg-[rgba(0,0,0,0.92)] p-3 shadow-[0_20px_60px_rgba(0,0,0,.45)]"
             role="dialog"
           >
             <div className="px-1 text-[11px] text-white/60">Max {MAX_TOTAL} guests total</div>
@@ -653,72 +655,59 @@ function GuestsPopover({
   );
 }
 
-/* ---------------------- Magnetic demo button with sheen -------------------- */
-function MagneticButton({ onClick }: { onClick?: () => void }) {
-  const x = useSpring(0, { stiffness: 200, damping: 15 });
-  const y = useSpring(0, { stiffness: 200, damping: 15 });
-
-  function onMove(e: React.MouseEvent<HTMLButtonElement>) {
-    const r = e.currentTarget.getBoundingClientRect();
-    const dx = e.clientX - (r.left + r.width / 2);
-    const dy = e.clientY - (r.top + r.height / 2);
-    x.set(clamp(dx * 0.2, -12, 12));
-    y.set(clamp(dy * 0.2, -10, 10));
-  }
-  function onLeave() { x.set(0); y.set(0); }
-
+function BookNowButton({ onClick }: { onClick?: () => void }) {
   return (
-    <motion.button
-      onMouseMove={onMove}
-      onMouseLeave={onLeave}
-      whileTap={{ scale: 0.98 }}
+    <button
+      type="button"
       onClick={onClick}
-      style={{ x, y, background: RR.red }}
-      className="group relative inline-flex items-center gap-2 overflow-hidden rounded-2xl px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(229,9,20,0.45)]"
+      className="inline-flex items-center gap-2 rounded-2xl bg-[#E50914] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(229,9,20,0.45)] transition hover:brightness-110 active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
     >
-      <span className="relative z-10 flex items-center gap-2">
-        <Zap className="size-4" /> Book Now
-      </span>
-      <span className="pointer-events-none absolute inset-0 -translate-x-full bg-[linear-gradient(110deg,transparent,rgba(255,255,255,0.28),transparent)] transition-transform duration-700 group-hover:translate-x-0" />
-    </motion.button>
+      <Zap className="size-4" /> Book now
+    </button>
   );
 }
 
 /* ------------------------------- STATS STRIP ------------------------------- */
-function CountUp({ value }: { value: number }) {
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: "-40% 0px" });
+function CountUp({ value, decimals = 0 }: { value: number; decimals?: number }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const inView = useInView(ref, { once: true, margin: "0px 0px -10% 0px" });
   const mv = useMotionValue(0);
-  const rounded = useTransform(mv, (v) => Math.round(v).toLocaleString());
+  const rounded = useTransform(mv, (v) =>
+    decimals > 0 ? v.toFixed(decimals) : Math.round(v).toLocaleString()
+  );
 
   useEffect(() => {
-    if (inView) {
-      const controls = animate(mv, value, { duration: 1.2, ease: "easeOut" });
-      return () => controls.stop();
-    }
-  }, [inView, value, mv]);
+    if (!inView) return;
+    const controls = animate(mv, value, { duration: 0.8, ease: "easeOut" });
+    return () => controls.stop();
+  }, [inView, value, mv, decimals]);
 
   return <motion.span ref={ref}>{rounded}</motion.span>;
 }
 
 function StatsStrip() {
-  const items = [
+  const items: {
+    icon: React.ReactNode;
+    label: string;
+    value: number;
+    decimals?: number;
+    suffix?: string;
+  }[] = [
     { icon: <Sparkles className="size-5" />, label: "Experiences booked", value: 128_432 },
-    { icon: <TimerReset className="size-5" />, label: "Avg. checkout time", value: 28 },
+    { icon: <TimerReset className="size-5" />, label: "Avg. checkout time", value: 28, suffix: "s" },
     { icon: <ShieldCheck className="size-5" />, label: "Hotels partnered", value: 960 },
-    { icon: <Star className="size-5" />, label: "Avg. rating", value: 4.9 },
+    { icon: <Star className="size-5" />, label: "Avg. rating", value: 4.9, decimals: 1, suffix: "★" },
   ];
   return (
     <section className="px-6 pt-10 text-white">
-      <div className="mx-auto max-w-7xl grid grid-cols-2 gap-4 md:grid-cols-4">
-        {items.map((it, i) => (
-          <div key={i} className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm flex items-center gap-3">
+      <div className="mx-auto grid max-w-7xl grid-cols-2 gap-4 md:grid-cols-4">
+        {items.map((it) => (
+          <div key={it.label} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="grid place-items-center rounded-xl bg-white/10 p-2">{it.icon}</div>
             <div>
-              <div className="text-xl font-bold">
-                {it.label.includes("rating") ? (<><CountUp value={it.value} />★</>) :
-                 it.label.includes("time") ? (<><CountUp value={it.value} />s</>) :
-                 (<CountUp value={it.value} />)}
+              <div className="text-xl font-bold tabular-nums">
+                <CountUp value={it.value} decimals={it.decimals} />
+                {it.suffix ?? ""}
               </div>
               <div className="text-xs text-white/70">{it.label}</div>
             </div>
@@ -741,8 +730,15 @@ type Hotel = {
   images: HotelImage[];
 };
 
-function Featured({ cityFilter, guests }: { cityFilter: string; guests: Guests }) {
-  const navigate = useNavigate();
+function Featured({
+  cityFilter,
+  guests,
+  dates,
+}: {
+  cityFilter: string;
+  guests: Guests;
+  dates: { start: Date | null; end: Date | null };
+}) {
   const [items, setItems] = React.useState<Hotel[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -783,11 +779,11 @@ function Featured({ cityFilter, guests }: { cityFilter: string; guests: Guests }
   return (
     <section id="featured" className="px-6 py-16 text-white">
       <div className="mx-auto max-w-7xl">
-        <h2 className="text-3xl font-bold">Featured Stays</h2>
-        <p className="text-white/70 mb-6">
-          Cinematic tilt, parallax, and glow
-          {((guests.adults + guests.kids) > 0) && ` • showing stays for ${guests.adults + guests.kids} guests`}
-          {cityFilter && ` • in ${cityFilter}`}
+        <h2 className="text-3xl font-bold">Featured stays</h2>
+        <p className="mb-6 text-white/70">
+          {cityFilter ? `Stays in ${cityFilter}` : "Hand-picked hotels"}
+          {(guests.adults + guests.kids) > 0 ? ` for ${guests.adults + guests.kids} guests` : ""}
+          {dates.start && dates.end ? ` · ${fmtShort(dates.start)} – ${fmtShort(dates.end)}` : ""}
           .
         </p>
 
@@ -805,23 +801,42 @@ function Featured({ cityFilter, guests }: { cityFilter: string; guests: Guests }
           </div>
         )}
 
-        {!loading && !error && (
+        {!loading && !error && filtered.length === 0 && (
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center">
+            <p className="text-lg font-semibold">No stays match that search</p>
+            <p className="mt-1 text-sm text-white/70">Try another city, or fewer guests.</p>
+          </div>
+        )}
+
+        {!loading && !error && filtered.length > 0 && (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             {filtered.map((h) => {
               const img = h.images?.[0]?.url || "/images/featured_hotel.avif";
+              const params = new URLSearchParams();
+              if (dates.start && dates.end) {
+                const [inDay, outDay] = +dates.start <= +dates.end
+                  ? [dates.start, dates.end]
+                  : [dates.end, dates.start];
+                params.set("checkIn", toYMD(inDay));
+                params.set("checkOut", toYMD(outDay));
+              }
+              const totalGuests = (guests?.adults ?? 0) + (guests?.kids ?? 0);
+              if (totalGuests > 0) params.set("guests", String(totalGuests));
+              const q = params.toString();
               return (
-                <article
+                <Link
                   key={h.id}
-                  className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm cursor-pointer hover:brightness-110 transition"
-                  onClick={() => navigate(`/hotels/${h.id}`)}
+                  to={q ? `/hotels/${h.id}?${q}` : `/hotels/${h.id}`}
+                  className="block overflow-hidden rounded-2xl border border-white/10 bg-white/5 transition hover:border-white/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#E50914]"
                   title={`View details for ${h.name}`}
                 >
                   <div className="relative h-60 w-full overflow-hidden">
                     <img
                       src={img}
                       alt={h.images?.[0]?.alt ?? h.name}
-                      className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
+                      className="h-full w-full object-cover"
                       loading="lazy"
+                      decoding="async"
                     />
                     <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
                     <div className="absolute left-3 top-3 rounded-full bg-black/60 px-3 py-1 text-xs">
@@ -831,27 +846,26 @@ function Featured({ cityFilter, guests }: { cityFilter: string; guests: Guests }
 
                   <div className="p-4">
                     <div className="flex items-start justify-between gap-3">
-                      <div>
+                      <div className="min-w-0">
                         <h3 className="text-lg font-semibold">{h.name}</h3>
                         <div className="mt-1 flex items-center gap-1 text-sm text-white/80">
-                          <Star className="h-4 w-4" />
-                          {h.rating ?? "—"} • Free cancellation
+                          <Star className="h-4 w-4 fill-white/80" />
+                          {h.rating ?? "—"} · Free cancellation
                         </div>
                       </div>
-                      <div className="text-right">
+                      <div className="shrink-0 text-right">
                         <div className="text-xl font-bold">${h.price}</div>
                         <div className="text-xs text-white/60">per night</div>
                       </div>
                     </div>
 
-                    <div className="mt-4 flex items-center justify-between">
-                      <button className="rounded-xl bg-[#E50914] px-4 py-2 text-sm font-semibold shadow-[0_10px_30px_rgba(229,9,20,0.45)] hover:brightness-110">
-                        Reserve
-                      </button>
-                      <span className="text-sm text-white/70">Details →</span>
+                    <div className="mt-4">
+                      <span className="inline-flex rounded-xl bg-[#E50914] px-4 py-2 text-sm font-semibold">
+                        View stay
+                      </span>
                     </div>
                   </div>
-                </article>
+                </Link>
               );
             })}
           </div>
@@ -862,50 +876,41 @@ function Featured({ cityFilter, guests }: { cityFilter: string; guests: Guests }
 }
 
 /* ----------------------------- Events (DB-driven) -------------------------- */
-type EventItem = {
-  id: number;
-  name: string;
-  description: string;
-  location: string;
-  startsAt: string;
-  price: number;
-  capacity: number;
-  imageUrl: string;
-  imageAlt?: string | null;
-};
 function formatWhen(iso: string) {
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
   const date = d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
   return `${date} • ${time}`;
 }
 
-/* Ken Burns marquee now takes events from DB */
 function KenBurnsShowcase({ events }: { events: EventItem[] }) {
-  const slides = (events ?? [])
-    .slice(0, 8)
-    .map((e) => ({ img: e.imageUrl, title: e.name, sub: `${e.location} • ${formatWhen(e.startsAt)}` }));
-
+  const slides = useMemo(
+    () =>
+      (events ?? [])
+        .slice(0, 6)
+        .map((e) => ({ img: e.imageUrl, title: e.name, sub: `${e.location} • ${formatWhen(e.startsAt)}` })),
+    [events]
+  );
   const seq = slides.length > 0 ? [...slides, ...slides] : [];
   if (seq.length === 0) return null;
 
   return (
-    <section className="px-6 pb-16 text-white">
+    <section className="px-6 pb-16 text-white" aria-label="Upcoming events">
       <div className="mx-auto max-w-7xl overflow-hidden rounded-3xl border border-white/10 bg-white/5">
-        <div className="relative flex animate-[kbmarquee_30s_linear_infinite]">
+        <div className="rr-marquee flex w-max">
           {seq.map((s, i) => (
-            <div key={i} className="relative h-56 min-w-[70%] md:h-72 md:min-w-[40%] overflow-hidden">
-              <motion.img
+            <div key={`${s.title}-${i}`} className="relative h-56 w-[70vw] shrink-0 overflow-hidden md:h-72 md:w-[28rem]">
+              <img
                 src={s.img}
                 onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/images/fallback.jpg"; }}
-                alt={s.title}
+                alt=""
                 className="absolute inset-0 h-full w-full object-cover"
-                initial={{ scale: 1.05, x: 0 }}
-                whileInView={{ scale: 1.18, x: 15 }}
-                transition={{ duration: 10, ease: "linear" }}
+                loading="lazy"
+                decoding="async"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-black/0" />
-              <div className="absolute bottom-3 left-4">
+              <div className="absolute bottom-3 left-4 right-4">
                 <div className="text-sm text-white/80">{s.sub}</div>
                 <div className="text-xl font-semibold">{s.title}</div>
               </div>
@@ -913,48 +918,7 @@ function KenBurnsShowcase({ events }: { events: EventItem[] }) {
           ))}
         </div>
       </div>
-      <style>{`
-        @keyframes kbmarquee { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
-        @media (prefers-reduced-motion: reduce) { .animate-[kbmarquee_30s_linear_infinite]{animation:none} }
-      `}</style>
     </section>
-  );
-}
-
-/* Inline EventCard for the grid */
-function EventCard({ ev }: { ev: EventItem }) {
-  const navigate = useNavigate();
-  const when = formatWhen(ev.startsAt);
-  return (
-    <article
-      className="group overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm cursor-pointer hover:brightness-110 transition"
-      onClick={() => navigate(`/events/${ev.id}`)}
-      title={`View details for ${ev.name}`}
-    >
-      <div className="relative h-60 w-full overflow-hidden">
-        <img
-          src={ev.imageUrl || "/images/fallback.jpg"}
-          alt={ev.imageAlt ?? ev.name}
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-          loading="lazy"
-        />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
-        <div className="absolute left-3 top-3 rounded-full bg-black/60 px-3 py-1 text-xs">{ev.location}</div>
-      </div>
-      <div className="p-4 text-white">
-        <div className="flex items-start justify-between gap-3">
-          <div className="pr-4">
-            <h3 className="text-lg font-semibold">{ev.name}</h3>
-            <div className="mt-1 text-sm text-white/80">{when}</div>
-          </div>
-          <div className="text-right">
-            <div className="text-xl font-bold">${ev.price}</div>
-            <div className="text-xs text-white/60">per ticket</div>
-          </div>
-        </div>
-        <div className="mt-3 line-clamp-2 text-sm text-white/80">{ev.description}</div>
-      </div>
-    </article>
   );
 }
 
@@ -964,8 +928,8 @@ function EventStrip({ events, loading, error }: { events: EventItem[]; loading: 
     <section className="px-6 pb-24 text-white">
       <div className="mx-auto max-w-7xl">
         <div className="mb-6">
-          <h2 className="text-3xl font-bold">Tonight in the City</h2>
-          <p className="text-white/70">Curated events with motion-blur slides.</p>
+          <h2 className="text-3xl font-bold">Tonight in the city</h2>
+          <p className="text-white/70">Shows and nights out you can book with your stay.</p>
         </div>
 
         {loading && (
@@ -980,7 +944,13 @@ function EventStrip({ events, loading, error }: { events: EventItem[]; loading: 
           <div className="text-red-400">Couldn’t load events: {error}</div>
         )}
 
-        {!loading && !error && (
+        {!loading && !error && events.length === 0 && (
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-white/70">
+            No events listed right now.
+          </div>
+        )}
+
+        {!loading && !error && events.length > 0 && (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             {events.map((e) => <EventCard key={e.id} ev={e} />)}
           </div>
@@ -1004,17 +974,8 @@ function Hero({
   setGuests: (g: Guests | ((prev: Guests) => Guests)) => void;
   dates: DatesState;
   setDates: (v: DatesState) => void;
-  onSearch: () => void; // commit filters + scroll handled by parent
+  onSearch: () => void;
 }) {
-  // cursor glow & parallax (kept)
-  const mx = useMotionValue(0.5);
-  const my = useMotionValue(0.5);
-  const pTitle = useTransform([mx, my], ([x, y]: number[]) => `translate3d(${(x - 0.5) * 18}px, ${(y - 0.5) * 12}px, 0)`);
-  const pPanel = useTransform([mx, my], ([x, y]: number[]) => `translate3d(${(x - 0.5) * -14}px, ${(y - 0.5) * -10}px, 0)`);
-
-  const glowX = useTransform(mx, (v) => `${v * 100}%`);
-  const glowY = useTransform(my, (v) => `${v * 100}%`);
-
   // Personalized headline
   const [firstName, setFirstName] = useState<string | null>(null);
   useEffect(() => {
@@ -1045,94 +1006,52 @@ function Hero({
   }, []);
 
   const headline = `Welcome to RedRoute${firstName ? `,\u00A0${firstName}` : ""}`;
-
-  function onMove(e: React.MouseEvent<HTMLDivElement>) {
-    const r = e.currentTarget.getBoundingClientRect();
-    mx.set((e.clientX - r.left) / r.width);
-    my.set((e.clientY - r.top) / r.height);
-  }
+  const ticker = "Doha Jazz Fest  ·  Skyline Luxe Deal  ·  Rooftop Cinema  ·  Live Arena Tour  ·  Theatre Night";
 
   return (
-    <section className="relative text-white z-40 isolate bg-black">
-      <div className="relative h-[55vh] md:h-[48vh] w-full overflow-visible">
-        <div className="absolute inset-0 -z-10 [background:radial-gradient(900px_circle_at_20%_10%,rgba(229,9,20,0.20),transparent_60%),radial-gradient(900px_circle_at_85%_15%,rgba(255,107,107,0.16),transparent_65%)]" />
-        <div className="pointer-events-none absolute -left-1/3 top-0 -z-10 h-[150%] w-[80%] opacity-25 mix-blend-screen">
-          <div className="h-full w-full animate-[spin_36s_linear_infinite] [background:conic-gradient(from_0deg_at_50%_50%,rgba(229,9,20,0.28),transparent_30%,rgba(255,255,255,0.14),transparent_60%,rgba(229,9,20,0.22),transparent_90%)]" />
-        </div>
-        <div className="pointer-events-none absolute -right-1/3 top-0 -z-10 h-[150%] w-[80%] opacity-20 mix-blend-screen">
-          <div className="h-full w-full animate-[spin_48s_linear_infinite_reverse] [background:conic-gradient(from_140deg_at_50%_50%,rgba(255,255,255,0.12),transparent_25%,rgba(229,9,20,0.22),transparent_65%,rgba(255,255,255,0.12),transparent_95%)]" />
-        </div>
+    <section className="relative isolate bg-black text-white">
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(900px_circle_at_18%_0%,rgba(229,9,20,0.22),transparent_55%)]" />
+      <div className="mx-auto w-full max-w-7xl px-4 py-8 md:py-12">
+        <div className="rounded-[28px] border border-white/12 bg-zinc-950 p-6 shadow-[0_20px_60px_rgba(0,0,0,.45)] md:p-8">
+          <div className="max-w-3xl space-y-3 md:space-y-4">
+            <Kinetic text={headline} className="text-4xl md:text-6xl" />
+            <p className="max-w-xl text-sm text-white/85 md:text-base">
+              Hotels, events, and experiences. Search once, then book the stay.
+            </p>
+            <BookNowButton onClick={onSearch} />
+            <div className="flex flex-wrap items-center gap-2 text-[12px] text-white/75 md:text-sm">
+              <div className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">Trusted by 120k+</div>
+              <div className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">4.9★ rating</div>
+              <div className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">Fast checkout</div>
+            </div>
+          </div>
 
-        <div className="absolute inset-0 grid place-items-center px-4" onMouseMove={onMove}>
-          <div className="w-full max-w-7xl rounded-[28px] border border-white/12 bg-black/35 backdrop-blur-md shadow-[0_20px_60px_rgba(0,0,0,.45)] p-6 md:p-8 relative overflow-visible z-30">
-            <motion.div
-              className="pointer-events-none absolute h-[260px] w-[260px] -z-10 rounded-full bg-[radial-gradient(circle,rgba(229,9,20,0.14),transparent_60%)]"
-              style={{ left: glowX, top: glowY, translateX: "-50%", translateY: "-50%" }}
-            />
+          <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
+              <Field icon={<MapPin className="size-4" />} label="Destination">
+                <DestinationPicker value={city} onChange={setCity} />
+              </Field>
+              <Field icon={<Calendar className="size-4" />} label="Dates">
+                <CalendarPopover value={dates} onChange={setDates} />
+              </Field>
+              <Field icon={<User className="size-4" />} label="Guests">
+                <GuestsPopover value={guests} onChange={(g) => setGuests(g)} />
+              </Field>
+              <Field label={<span className="sr-only">Search</span>}>
+                <Button className="h-10 w-full rounded-xl text-sm" onClick={onSearch}>
+                  Search
+                </Button>
+              </Field>
+            </div>
 
-            <div className="grid grid-cols-1 items-center gap-6 md:grid-cols-2 relative">
-              <motion.div className="space-y-3 md:space-y-4" style={{ transform: pTitle }}>
-                <Kinetic text={headline} className="text-4xl md:text-6xl" />
-                <p className="max-w-xl text-sm md:text-base text-white/85">
-                  Hotels. Events. Experiences. Your gateway to the time of your life—anywhere, anytime!
-                </p>
-                <div className="flex flex-wrap items-center gap-2 md:gap-3">
-                  {/* Book Now acts like Search + scroll */}
-                  <MagneticButton onClick={onSearch} />
-                </div>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] md:text-sm text-white/75">
-                  <div className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">Trusted by 120k+</div>
-                  <div className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">4.9★ rating</div>
-                  <div className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">Lightning checkout</div>
-                </div>
-              </motion.div>
-
-              {/* RIGHT: compact search (draft inputs only) */}
-              <motion.div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur" style={{ transform: pPanel }}>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-4 md:items-end">
-                  <Field icon={<MapPin className="size-4" />} label="Destination">
-                    <DestinationPicker value={city} onChange={setCity} />
-                  </Field>
-                  <Field icon={<Calendar className="size-4" />} label="Dates">
-                    <CalendarPopover value={dates} onChange={setDates} />
-                  </Field>
-                  <Field icon={<User className="size-4" />} label="Guests">
-                    <GuestsPopover value={guests} onChange={setGuests as any} />
-                  </Field>
-                  <Field label={<span className="sr-only">Search</span>}>
-                    <Button
-                      className="h-10 w-full text-sm rounded-xl relative overflow-hidden"
-                      onClick={onSearch}
-                    >
-                      <span className="relative z-10">Search</span>
-                      <span className="pointer-events-none absolute inset-0 translate-x-[-120%] bg-[linear-gradient(110deg,transparent,rgba(255,255,255,0.25),transparent)] animate-[sheen_1.8s_linear_infinite]" />
-                    </Button>
-                  </Field>
-                </div>
-
-                <div className="mt-3 overflow-hidden rounded-xl border border-white/10">
-                  <div className="flex animate-[marquee_18s_linear_infinite] whitespace-nowrap text-[11px] md:text-xs [mask-image:linear-gradient(90deg,transparent,black_10%,black_90%,transparent)]">
-                    {Array.from({ length: 16 }).map((_, i) => (
-                      <span key={i} className="px-4 py-2 text-white/80">
-                        🔥 Doha Jazz Fest • 🏨 Skyline Luxe Deal • 🎟️ Rooftop Cinema • 🎤 Live Arena Tour • 🎭 Theatre Night
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </motion.div>
+            <div className="mt-3 overflow-hidden rounded-xl border border-white/10">
+              <div className="rr-marquee flex w-max whitespace-nowrap text-[11px] text-white/80 md:text-xs">
+                <span className="px-6 py-2">{ticker}</span>
+                <span className="px-6 py-2" aria-hidden="true">{ticker}</span>
+              </div>
             </div>
           </div>
         </div>
-
-        <style>{`
-          @keyframes marquee { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
-          @keyframes spin { to { transform: rotate(360deg); } }
-          @keyframes sheen { 0% { transform: translateX(-120%);} 100% { transform: translateX(120%);} }
-          @media (prefers-reduced-motion: reduce) {
-            .animate-[marquee_18s_linear_infinite] { animation: none !important; }
-            .animate-[spin_36s_linear_infinite], .animate-[spin_48s_linear_infinite_reverse] { animation: none !important; }
-          }
-        `}</style>
       </div>
     </section>
   );
@@ -1157,15 +1076,23 @@ export default function RedRouteLandingUltra() {
   const [datesDraft, setDatesDraft] = useState<DatesState>({ start: null, end: null });
 
   const [cityApplied, setCityApplied] = useState("");
-  const [guestsApplied, setGuestsApplied] = useState<Guests>({ adults: 0, kids: 0 }); // 0 = no capacity filter
+  const [guestsApplied, setGuestsApplied] = useState<Guests>({ adults: 0, kids: 0 });
+  const [datesApplied, setDatesApplied] = useState<DatesState>({ start: null, end: null });
+  const [showTop, setShowTop] = useState(false);
 
-  // Commit filters + scroll
   const doSearch = () => {
-    setCityApplied(cityDraft);
+    setCityApplied(cityDraft.trim());
     setGuestsApplied(guestsDraft);
-    const el = document.getElementById("featured");
-    if (el) el.scrollIntoView({ behavior: "smooth" });
+    setDatesApplied(datesDraft);
+    document.getElementById("featured")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
+
+  useEffect(() => {
+    const onScroll = () => setShowTop(window.scrollY > 480);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   // Events state (single fetch used by both marquee + grid)
   const [events, setEvents] = useState<EventItem[]>([]);
@@ -1192,10 +1119,8 @@ export default function RedRouteLandingUltra() {
   }, []);
 
   const logout = () => {
+    clearSession();
     try {
-      localStorage.removeItem("rr_demo_user");
-      localStorage.removeItem("rr_guest");
-      localStorage.removeItem("rr_name");
       localStorage.removeItem("rr_email");
       deleteCookie("uid");
       deleteCookie("userId");
@@ -1203,22 +1128,24 @@ export default function RedRouteLandingUltra() {
       deleteCookie("email");
       deleteCookie("user_email");
     } catch {}
-    navigate("/");
+    navigate("/login", { replace: true });
   };
 
   return (
-    <div className="min-h-screen w-full bg-black font-sans">
+    <div className="min-h-screen w-full bg-black font-sans text-white">
       <ScrollProgress />
 
-      <button
-        onClick={logout}
-        className="fixed top-5 right-5 z-50 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold bg-white/10 border border-white/15 text-white hover:bg-white/20"
-        title="Log out"
-      >
-        <LogOut className="size-4" /> Logout
-      </button>
+      <header className="sticky top-0 z-40 flex items-center justify-between border-b border-white/10 bg-zinc-950 px-4 py-3">
+        <Link to="/home" className="text-lg font-black tracking-tight">RedRoute</Link>
+        <button
+          type="button"
+          onClick={logout}
+          className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+        >
+          <LogOut className="size-4" /> Log out
+        </button>
+      </header>
 
-      {/* HERO: pass drafts only; Search commits + scrolls */}
       <Hero
         city={cityDraft}
         setCity={setCityDraft}
@@ -1230,27 +1157,25 @@ export default function RedRouteLandingUltra() {
       />
       <StatsStrip />
 
-      {/* Featured hotels (filtered by *applied* values only) */}
-      <Featured cityFilter={cityApplied} guests={guestsApplied} />
+      <Featured cityFilter={cityApplied} guests={guestsApplied} dates={datesApplied} />
 
-      {/* DB-driven Ken Burns from events */}
       <KenBurnsShowcase events={events} />
 
-      {/* Events grid */}
       <EventStrip events={events} loading={evLoading} error={evError} />
 
       <Testimonials />
       <SiteFooter />
 
-      <button
-        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-        className="fixed bottom-6 right-6 grid h-12 w-12 place-items-center rounded-full shadow-2xl"
-        style={{ background: RR.red }}
-        aria-label="Back to top"
-        title="Back to top"
-      >
-        <ChevronUp className="size-6 text-white" />
-      </button>
+      {showTop && (
+        <button
+          type="button"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          className="fixed bottom-6 right-6 grid h-12 w-12 place-items-center rounded-full bg-[#E50914] shadow-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+          aria-label="Back to top"
+        >
+          <ChevronUp className="size-6 text-white" />
+        </button>
+      )}
     </div>
   );
 }
@@ -1267,7 +1192,7 @@ function Testimonials() {
         <h2 className="mb-6 text-3xl font-bold">What people say</h2>
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           {quotes.map((q) => (
-            <div key={q.name} className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
+            <div key={q.name} className="rounded-3xl border border-white/10 bg-white/5 p-6">
               <div className="flex items-start gap-4">
                 <div className="grid h-12 w-12 place-items-center rounded-full bg-white/15 text-sm font-semibold">{q.initials}</div>
                 <div className="flex-1">
@@ -1294,18 +1219,10 @@ function SiteFooter() {
   const year = new Date().getFullYear();
   return (
     <footer className="px-6 pb-16 pt-10 text-white">
-      <div className="mx-auto max-w-7xl rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
-        <div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
-          <div>
-            <div className="text-2xl font-black">RedRoute</div>
-            <div className="text-white/70">Hotels • Events • Experiences</div>
-          </div>
-          <nav className="flex gap-6 text-sm text-white/80">
-            <a href="#" className="hover:text-white">About</a>
-            <a href="#" className="hover:text-white">Careers</a>
-            <a href="#" className="hover:text-white">Help</a>
-            <a href="#" className="hover:text-white">Privacy</a>
-          </nav>
+      <div className="mx-auto max-w-7xl rounded-3xl border border-white/10 bg-white/5 p-6">
+        <div>
+          <div className="text-2xl font-black">RedRoute</div>
+          <div className="text-white/70">Hotels · Events · Experiences</div>
         </div>
         <div className="mt-6 border-t border-white/10 pt-4 text-sm text-white/60">
           © {year} RedRoute. All rights reserved.

@@ -16,7 +16,7 @@ function VideoBackground({ src = "/s.mp4", poster }: { src?: string; poster?: st
         muted
         loop
         playsInline
-        preload="auto"
+        preload="metadata"
       />
       <div className="absolute inset-0 bg-black/40" />
     </div>
@@ -37,11 +37,6 @@ export default function SignIn() {
       <VideoBackground src="/s.mp4" />
       <div className="relative z-10 w-full max-w-md">
         <GamingLogin />
-        <div className="mt-3 text-center text-xs text-white/60">
-          Troubleshooting:{" "}
-          <a className="underline" href="/logout">force sign out</a> •{" "}
-          <a className="underline" href="/login?reset=1">reset this device</a>
-        </div>
       </div>
       <footer className="absolute bottom-4 left-0 right-0 text-center text-white/70 text-sm z-10">
         © {new Date().getFullYear()} RedRoute

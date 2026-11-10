@@ -213,54 +213,29 @@ export default function EventDetail() {
         const e: EventItem = await r.json();
         setEv(e);
 
-        if (Array.isArray((e as any)?.reviews)) {
-          setReviews((e as any).reviews);
+        if (Array.isArray(e.reviews)) {
+          setReviews(e.reviews);
           setRevErr(null);
-          setRevLoading(false);
         } else {
-          setRevLoading(true); // defer to next effect
+          try {
+            const rr = await fetch(`/api/events/${id}/reviews`, { credentials: "include" });
+            if (rr.ok) {
+              const data: Review[] = await rr.json();
+              setReviews(Array.isArray(data) ? data : []);
+              setRevErr(null);
+            }
+          } catch (revError: any) {
+            setRevErr(revError?.message || "Failed to load reviews");
+          }
         }
-      } catch (e: any) {
+      } catch {
         setEv(null);
       } finally {
         setLoading(false);
-      }
-    })();
-  }, [id]);
-
-  // Load reviews: prefer /api/events/:id payload; fallback to /api/events/:id/reviews
-  useEffect(() => {
-    (async () => {
-      if (!id) return;
-      if (reviews.length) return; // already hydrated from main payload
-      setRevLoading(true);
-      try {
-        // Try again (if first call raced)
-        const r1 = await fetch(`/api/events/${id}`, { credentials: "include" });
-        if (r1.ok && (r1.headers.get("content-type") || "").includes("application/json")) {
-          const p1 = await r1.json().catch(() => null);
-          if (p1 && Array.isArray(p1.reviews)) {
-            setReviews(p1.reviews);
-            setRevErr(null);
-            setRevLoading(false);
-            return;
-          }
-        }
-
-        // Optional fallback route (only if you add it)
-        const r = await fetch(`/api/events/${id}/reviews`, { credentials: "include" });
-        if (r.ok) {
-          const data: Review[] = await r.json();
-          setReviews(Array.isArray(data) ? data : []);
-          setRevErr(null);
-        }
-      } catch (e: any) {
-        setRevErr(e?.message || "Failed to load reviews");
-      } finally {
         setRevLoading(false);
       }
     })();
-  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [id]);
 
   const subtotal = useMemo(() => (!ev ? 0 : ev.price * qty), [ev, qty]);
   const valid = !!ev && qty > 0;
@@ -373,16 +348,16 @@ export default function EventDetail() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* Fixed Home button (always visible) */}
-      <button
-        onClick={() => navigate("/home")}
-        className="fixed left-5 top-5 z-[9999] inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold bg-white/10 border border-white/15 hover:bg-white/20"
-        aria-label="Back to home"
-        title="Back to home"
-      >
-        <Home className="h-4 w-4" />
-        Home
-      </button>
+      <header className="sticky top-0 z-40 border-b border-white/10 bg-zinc-950 px-4 py-3">
+        <button
+          type="button"
+          onClick={() => navigate("/home")}
+          className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/20"
+        >
+          <Home className="h-4 w-4" />
+          Home
+        </button>
+      </header>
 
       <div className="mx-auto max-w-5xl p-6 grid grid-cols-1 gap-6 md:grid-cols-[2fr_1fr]">
         {/* LEFT: event card + confirmation banner */}
@@ -392,6 +367,7 @@ export default function EventDetail() {
               src={ev.imageUrl}
               alt={ev.imageAlt ?? ev.name}
               className="h-full w-full object-cover"
+              decoding="async"
               onError={(e) => ((e.currentTarget as HTMLImageElement).src = "/images/fallback.jpg")}
             />
           </div>

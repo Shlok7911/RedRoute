@@ -1,9 +1,26 @@
 @import "tailwindcss";
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
 
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
 
+@keyframes rr-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
 
-/* optional: smooth fonts */
-html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+.rr-marquee {
+  animation: rr-marquee 32s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .rr-marquee { animation: none; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

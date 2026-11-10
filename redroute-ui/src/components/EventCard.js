@@ -1,0 +1,9 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { Link } from "react-router-dom";
+export default function EventCard({ ev }) {
+    const date = new Date(ev.startsAt);
+    const when = Number.isNaN(date.getTime())
+        ? ""
+        : `${date.toLocaleDateString(undefined, { month: "short", day: "numeric" })} • ${date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`;
+    return (_jsxs(Link, { to: `/events/${ev.id}`, className: "group block overflow-hidden rounded-2xl border border-white/10 bg-white/5 transition hover:border-white/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#E50914]", title: `View details for ${ev.name}`, children: [_jsxs("div", { className: "relative h-60 w-full overflow-hidden", children: [_jsx("img", { src: ev.imageUrl || "/images/fallback.jpg", alt: ev.imageAlt ?? ev.name, className: "h-full w-full object-cover transition-transform duration-500 group-hover:scale-105", loading: "lazy", decoding: "async" }), _jsx("div", { className: "pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" }), _jsx("div", { className: "absolute left-3 top-3 rounded-full bg-black/60 px-3 py-1 text-xs", children: ev.location })] }), _jsxs("div", { className: "p-4 text-white", children: [_jsxs("div", { className: "flex items-start justify-between gap-3", children: [_jsxs("div", { className: "min-w-0 pr-4", children: [_jsx("h3", { className: "text-lg font-semibold", children: ev.name }), _jsx("div", { className: "mt-1 text-sm text-white/80", children: when })] }), _jsxs("div", { className: "shrink-0 text-right", children: [_jsxs("div", { className: "text-xl font-bold", children: ["$", ev.price] }), _jsx("div", { className: "text-xs text-white/60", children: "per ticket" })] })] }), _jsx("div", { className: "mt-3 line-clamp-2 text-sm text-white/80", children: ev.description })] })] }));
+}

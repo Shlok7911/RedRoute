@@ -331,10 +331,18 @@ export default function HotelDetail() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  const today = new Date();
-  const [checkIn, setCheckIn] = useState<string>(fmtDateYMD(plusDays(today, 1)));
-  const [checkOut, setCheckOut] = useState<string>(fmtDateYMD(plusDays(today, 3)));
-  const [guests, setGuests] = useState<number>(2);
+  const [checkIn, setCheckIn] = useState<string>(() => {
+    const q = new URLSearchParams(window.location.search).get("checkIn");
+    return q && /^\d{4}-\d{2}-\d{2}$/.test(q) ? q : fmtDateYMD(plusDays(new Date(), 1));
+  });
+  const [checkOut, setCheckOut] = useState<string>(() => {
+    const q = new URLSearchParams(window.location.search).get("checkOut");
+    return q && /^\d{4}-\d{2}-\d{2}$/.test(q) ? q : fmtDateYMD(plusDays(new Date(), 3));
+  });
+  const [guests, setGuests] = useState<number>(() => {
+    const n = Number(new URLSearchParams(window.location.search).get("guests"));
+    return Number.isFinite(n) && n > 0 ? Math.min(10, Math.round(n)) : 2;
+  });
 
   const [busy] = useState(false);
   const [reserveMsg, setReserveMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -397,51 +405,36 @@ export default function HotelDetail() {
         setHotel(data);
         setErr(null);
 
-        // hydrate reviews if present
-        if (Array.isArray((data as any)?.reviews)) {
-          setReviews((data as any).reviews);
+        if (Array.isArray(data.reviews)) {
+          setReviews(data.reviews);
           setRevErr(null);
-          setRevLoading(false);
+        } else {
+          try {
+            const rr = await fetch(`/api/hotels/${encodeURIComponent(id)}/reviews`, {
+              credentials: "include",
+              signal: ac.signal,
+            });
+            if (!rr.ok) throw new Error(`HTTP ${rr.status}`);
+            const list: Review[] = await rr.json();
+            setReviews(Array.isArray(list) ? list : []);
+            setRevErr(null);
+          } catch (revError: any) {
+            if (revError?.name === "AbortError") return;
+            setRevErr(revError?.message || "Failed to load reviews");
+          }
         }
       } catch (e: any) {
+        if (e?.name === "AbortError") return;
         setErr(e?.message || "Could not load hotel");
       } finally {
-        setLoading(false);
+        if (!ac.signal.aborted) {
+          setLoading(false);
+          setRevLoading(false);
+        }
       }
     })();
 
     return () => abortRef.current?.abort();
-  }, [id]);
-
-  // Load reviews: prefer /api/hotels/:id (payload.reviews), fallback to /api/hotels/:id/reviews
-  useEffect(() => {
-    (async () => {
-      if (!id) return;
-      setRevLoading(true);
-      try {
-        const r1 = await fetch(`/api/hotels/${id}`, { credentials: "include" });
-        if (r1.ok && (r1.headers.get("content-type") || "").includes("application/json")) {
-          const p1 = await r1.json().catch(() => null);
-          if (p1 && Array.isArray(p1.reviews)) {
-            setReviews(p1.reviews);
-            setRevErr(null);
-            setRevLoading(false);
-            return;
-          }
-        }
-
-        // fallback to sub-route
-        const r = await fetch(`/api/hotels/${id}/reviews`, { credentials: "include" });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const data: Review[] = await r.json();
-        setReviews(Array.isArray(data) ? data : []);
-        setRevErr(null);
-      } catch (e: any) {
-        setRevErr(e?.message || "Failed to load reviews");
-      } finally {
-        setRevLoading(false);
-      }
-    })();
   }, [id]);
 
   const avgRating = useMemo(() => {
@@ -538,13 +531,15 @@ export default function HotelDetail() {
   /* --------------------------- UI -------------------------- */
   return (
     <div className="min-h-screen bg-black text-white">
-      <button
-        onClick={() => navigate(-1)}
-        className="fixed top-5 left-5 z-50 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm 
-        font-semibold bg-white/10 border border-white/15 text-white hover:bg-white/20"
-      >
-        <ChevronLeft className="h-4 w-4" /> Back
-      </button>
+      <header className="sticky top-0 z-40 border-b border-white/10 bg-zinc-950 px-4 py-3">
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/20"
+        >
+          <ChevronLeft className="h-4 w-4" /> Back
+        </button>
+      </header>
 
       {loading && (
         <div className="mx-auto max-w-5xl p-6">
@@ -575,11 +570,12 @@ export default function HotelDetail() {
       {!loading && !err && hotel && (
         <>
           {/* HERO */}
-          <div className="relative mx-auto max-w-5xl">
+          <div className="relative mx-auto max-w-5xl px-4 pt-4">
             <img
               src={hotel.images?.[0]?.url || "/images/featured_hotel.avif"}
               alt={hotel.images?.[0]?.alt ?? hotel.name}
               className="h-72 w-full rounded-2xl object-cover"
+              decoding="async"
             />
             <div className="absolute bottom-3 left-3 rounded-full bg-black/60 px-3 py-1 text-sm">
               <MapPin className="mr-1 inline h-4 w-4" /> {hotel.city}

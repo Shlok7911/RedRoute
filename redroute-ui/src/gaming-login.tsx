@@ -1,5 +1,4 @@
 // src/gaming-login.tsx
-'use client';
 import React, { useState } from 'react';
 import {
   Eye, EyeOff, Mail, Lock,
@@ -20,12 +19,13 @@ type FormInputProps = {
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   required?: boolean;
   autoComplete?: string;
+  className?: string;
 };
 const FormInput: React.FC<FormInputProps> = ({
-  icon, type, placeholder, value, onChange, required, autoComplete,
+  icon, type, placeholder, value, onChange, required, autoComplete, className = "pr-3",
 }) => (
   <div className="relative">
-    <div className="absolute left-3 top-1/2 -translate-y-1/2">{icon}</div>
+    <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">{icon}</div>
     <input
       type={type}
       placeholder={placeholder}
@@ -33,19 +33,19 @@ const FormInput: React.FC<FormInputProps> = ({
       onChange={onChange}
       required={required}
       autoComplete={autoComplete}
-      className="w-full pl-10 pr-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/60 focus:outline-none focus:border-purple-500/50 transition-colors"
+      className={`w-full pl-10 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/60 focus:outline-none focus:border-[#E50914]/70 focus:ring-2 focus:ring-[#E50914]/40 transition-colors ${className}`}
     />
   </div>
 );
 
 type ToggleSwitchProps = { checked: boolean; onChange: () => void; id: string };
 const ToggleSwitch: React.FC<ToggleSwitchProps> = ({ checked, onChange, id }) => (
-  <div className="relative inline-block w-10 h-5 cursor-pointer">
+  <label htmlFor={id} className="relative inline-block w-10 h-5 cursor-pointer">
     <input type="checkbox" id={id} className="sr-only" checked={checked} onChange={onChange} />
-    <div className={`absolute inset-0 rounded-full transition-colors duration-200 ${checked ? 'bg-purple-600' : 'bg-white/20'}`}>
+    <div className={`absolute inset-0 rounded-full transition-colors duration-200 ${checked ? 'bg-[#E50914]' : 'bg-white/20'}`}>
       <div className={`absolute left-0.5 top-0.5 w-4 h-4 rounded-full bg-white transition-transform duration-200 ${checked ? 'translate-x-5' : ''}`} />
     </div>
-  </div>
+  </label>
 );
 
 /* ---------------------------- Component ----------------------------------- */
@@ -171,7 +171,7 @@ const GamingLogin: React.FC<GamingLoginProps> = ({ onSubmit }) => {
     <div className="p-8 rounded-2xl backdrop-blur-sm bg-black/50 border border-white/10 w-[min(460px,92vw)]">
       <div className="mb-8 text-center">
         <h2 className="text-3xl font-bold mb-2 relative group">
-          <span className="absolute -inset-1 bg-gradient-to-r from-purple-600/30 via-pink-500/30 to-blue-500/30 blur-xl opacity-75 group-hover:opacity-100 transition-all duration-500" />
+          <span className="absolute -inset-1 bg-[#E50914]/25 blur-xl opacity-75" />
           <span className="relative inline-block text-3xl font-bold mb-2 text-white">RedRoute</span>
         </h2>
         <p className="text-white/80 mt-2">
@@ -201,6 +201,7 @@ const GamingLogin: React.FC<GamingLoginProps> = ({ onSubmit }) => {
             onChange={(e) => setPassword(e.target.value)}
             required
             autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+            className="pr-10"
           />
           <button
             type="button"
@@ -257,6 +258,7 @@ const GamingLogin: React.FC<GamingLoginProps> = ({ onSubmit }) => {
               onChange={(e) => setDob(e.target.value)}
               required
               autoComplete="bday"
+              className="pr-3 [color-scheme:dark]"
             />
           </>
         )}
@@ -264,14 +266,8 @@ const GamingLogin: React.FC<GamingLoginProps> = ({ onSubmit }) => {
         {/* Remember + mode toggle */}
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <div onClick={() => setRemember(r => !r)} className="cursor-pointer">
-              <ToggleSwitch checked={remember} onChange={() => setRemember(r => !r)} id="remember-me" />
-            </div>
-            <label
-              htmlFor="remember-me"
-              className="text-sm text-white/80 cursor-pointer"
-              onClick={() => setRemember(r => !r)}
-            >
+            <ToggleSwitch checked={remember} onChange={() => setRemember(r => !r)} id="remember-me" />
+            <label htmlFor="remember-me" className="text-sm text-white/80 cursor-pointer">
               Remember me
             </label>
           </div>
