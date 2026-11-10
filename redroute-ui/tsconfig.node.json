@@ -6,7 +6,6 @@
     "skipLibCheck": true,
     "noEmit": true,
     "types": ["node"],
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],          // client code (Vite)
       "@server/*": ["./lib/server/*"] // server-only helpers

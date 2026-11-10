@@ -10,7 +10,7 @@ import {
 
 import { hasValidSession, clearSession } from "./session";
 
-const SignIn = lazy(() => import("./SignIn"));
+const SignIn = lazy(() => import("./SignIn.tsx"));
 const RedRouteLandingUltra = lazy(() => import("./RedRouteLandingUltra"));
 const HotelDetail = lazy(() => import("./HotelDetail"));
 const Checkout = lazy(() => import("./Checkout"));

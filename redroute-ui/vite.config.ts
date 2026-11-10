@@ -6,7 +6,9 @@ export default defineConfig({
   plugins: [react()],
   
   resolve: {
-    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) }
+    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+    // Prefer the TypeScript sources over any stale .js emit sitting beside them.
+    extensions: [".mjs", ".mts", ".ts", ".tsx", ".jsx", ".js", ".json"],
   },
   server: {
     proxy: {
