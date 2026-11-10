@@ -54,6 +54,6 @@
 - Featured cards with ratings & pricing
 - Events strip with immersive imagery
 - Testimonials block for trust
-- Cohesive footer
+- Cohesive footers
 
 
